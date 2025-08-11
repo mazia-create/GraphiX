@@ -1,4 +1,5 @@
-#pragma once 					\\file is included once per compilation
+#pragma once 					
+//file is included once per compilation
 #include <SFML/Graphics.hpp>
 #include "Plotter.hpp"
 #include "Button.hpp"
@@ -32,9 +33,21 @@ private:
 	Button addFileButton;
 	//for input pop-up
 	bool showingTextInput = false;
-	std::string userInput = "";
 	sf::Text inputPrompt;
+	std::string userInput = "";
+	//pretty home screen
+	sf::RectangleShape headerBar;
+	sf::Text brand;
+	sf::Text subbrand;
 
+	//Background grid
+	float gridSpacing = 32.f;
+	sf::Color gridColor = sf::Color(230,230,230);
+
+	//Hero line
+	std::vector<sf::Vertex > heroLine;
+	float heroAnim = 0.f; //0-1 progress
+	float heroSpeed = 0.4f; //seconds to draw fully
 public:
 	/*brief constructor: new app object
 	initializes window and subcomponents

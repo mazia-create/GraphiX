@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 //Constuctor: set up SFML window
 
 namespace fs = std::filesystem;
@@ -31,8 +32,46 @@ App::App()
 	inputText.setFillColor(sf::Color::Blue);
 	inputText.setPosition(110,210);
 	inputText.setString("");
-}
 
+	//Header bar
+	const float W = static_cast<float>(window.getSize().x);
+	const float H = static_cast<float>(window.getSize().y);
+	const float HeaderH = 80.f;
+
+	headerBar.setSize({W, HeaderH});
+	headerBar.setFillColor(sf::Color(28,35,52)); //Nice navy color ;D
+	headerBar.setPosition(0.f,0.f);
+
+	//Brand
+	brand.setFont(font);
+	brand.setString("GraphiX");
+	brand.setCharacterSize(36);
+	brand.setFillColor(sf::Color::White);
+	brand.setPosition(24.f,18.f);
+	
+	//Subtitle
+	subbrand.setFont(font);
+	subbrand.setString("The app that plots!");
+	subbrand.setCharacterSize(14);
+	subbrand.setFillColor(sf::Color(190,198,214));
+	subbrand.setPosition(26.f,56.f);
+	
+	//Build a small rising line aligned with title/brand
+	//struggling with animating how much is drawn
+	const float x0 = brand.getPosition().x + 5.f;
+	const float y0 = brand.getPosition().y + 8.f;
+	const float w = 240.f;
+	const float h = 28.f;
+
+	//Make a rising stair or curve(if possible) func {for looks ;) }
+	heroLine.clear();
+	for (int i=0; i<=24; ++i) {
+		float t = static_cast<float>(i)/24.f;
+		float x = x0 + t * w;
+		float y = y0 + h * (1.f - t) + 6.f * std::sin(t*6.28318f*0.5f); //2pi = 6.28318, 0.5 slows it down
+		heroLine.push_back(sf::Vertex({x,y}, sf::Color(100,200,255))); //aqua color
+}	
+}
 //Main loop: runs until the window is closed
 
 void App::run() {
@@ -43,9 +82,18 @@ void App::run() {
 		window.close();
 		return;
 		}
-		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::P){
+		/*if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::P){
 		launchPlotWindow("data/points.txt");
-		} //fallback / test
+		} //fallback / test */
+		//Hover (for aesthetics)
+		if(event.type == sf::Event::MouseMoved) {
+			sf::Vector2f mousePos(static_cast<float>(event.mouseMove.x),
+					static_cast<float>(event.mouseMove.y));
+			for (auto &btn : fileButtons) {
+				btn.setHovered(btn.contains(mousePos));
+			}
+			addFileButton.setHovered(addFileButton.contains(mousePos));
+		}
 		//Handle text input for pop up
 		if(showingTextInput && event.type == sf::Event::TextEntered) {
 			if(event.text.unicode == '\b') {
@@ -111,16 +159,57 @@ void App::render() {
 	//plotter.draw(window); //draws grid (once plotter is ready)
 	/*testButton.draw(window); //draw button<< was our test button gyal 	*/
 	//window.display(); //shows everything on screen
+	//Draw grid (under everything)
+	float W = static_cast<float>(window.getSize().x);
+	float H = static_cast<float>(window.getSize().y);
+	for (float x = 0.f; x <= W; x += gridSpacing) {
+		sf::Vertex v[] = {
+			sf::Vertex({x,0.f}, gridColor),
+			sf::Vertex({x,H}, gridColor)
+		};
+		window.draw(v,2,sf::Lines);
+	}
+	for (float y = 0.f; y <= H; y += gridSpacing) {
+		sf::Vertex v[] {
+			sf::Vertex({0.f,y}, gridColor),
+			sf::Vertex({W,y}, gridColor)
+		};
+		window.draw(v,2,sf::Lines);
+	}
+	//Header
+	window.draw(headerBar);
+	window.draw(brand);
+	window.draw(subbrand);
+
+	//animate line reveal
+	heroAnim += heroSpeed * 0.016f; //approx. ~60fps
+	if (heroAnim > 1.f) heroAnim = 1.f;
+
+	//draw only first N vertices based on "progress"
+	size_t N = static_cast<size_t>(heroAnim * heroLine.size());
+	if (N >= 2) window.draw(heroLine.data(),N, sf::LineStrip);
+	
+	//Side panel (for aesthetics)
+	sf::RectangleShape sidePanel;
+	sidePanel.setPosition(16.f,96.f);
+	sidePanel.setSize(sf::Vector2f(280.f, H - 120.f));
+	sidePanel.setFillColor(sf::Color(255,255,255, 230)); // semi-transparent
+	sidePanel.setOutlineColor(sf::Color(220,224,230)); //light gray/grey (idk difference)
+	sidePanel.setOutlineThickness(1.f);
+	window.draw(sidePanel);
+	//Button time ;)
 	for (auto& btn : fileButtons) {
 		btn.draw(window);
 	
 	}
+	//add file button
 	addFileButton.draw(window);
-	window.display();
+	//text box for other UI
 	if (showingTextInput) {
 		window.draw(inputBox);
 		window.draw(inputText);
 	}
+	window.display();
 }
 //we gon change a few things - make pop up window add gridlines to pop up window
 void App::launchPlotWindow(const std::string& filePath){
@@ -148,7 +237,7 @@ void App::loadDataFileButtons() {
 	fileButtons.clear(); //our little safety net
 	fileNames.clear(); //same as ^^
 	//positioning
-	float yOffset = 50.f;
+	float yOffset = 100.f;
 	float buttonHeight = 40.f;
 	float Buttonspacing = 10.f;
 	if (!font.loadFromFile("arial.ttf")) {
