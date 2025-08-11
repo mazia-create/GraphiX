@@ -35,6 +35,13 @@ private:
 	bool showingTextInput = false;
 	sf::Text inputPrompt;
 	std::string userInput = "";
+	//points input
+	sf::RectangleShape pointsInputBox;
+	sf::Text pointsInputText;
+	sf::Text pointsInputPrompt;
+	std::string userInputPoints;
+	bool focusOnFilename = true; //start on filename
+
 	//pretty home screen
 	sf::RectangleShape headerBar;
 	sf::Text brand;

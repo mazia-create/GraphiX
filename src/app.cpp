@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <cmath>
 //Constuctor: set up SFML window
 
@@ -33,6 +34,23 @@ App::App()
 	inputText.setPosition(110,210);
 	inputText.setString("");
 
+	//points input UI
+	pointsInputBox.setSize(sf::Vector2f(400,100));
+	pointsInputBox.setFillColor(sf::Color(240,240,240));
+	pointsInputBox.setOutlineColor(sf::Color::Black);
+	pointsInputBox.setOutlineThickness(2);
+	pointsInputBox.setPosition(100,280);
+
+	pointsInputPrompt.setFont(font);
+	pointsInputPrompt.setCharacterSize(14);
+	pointsInputPrompt.setFillColor(sf::Color::Black);
+	pointsInputPrompt.setString("Enter points (ex. 0 0; 1 2; 2 4)");
+	pointsInputPrompt.setPosition(100,260);
+
+	pointsInputText.setFont(font);
+	pointsInputText.setCharacterSize(16);
+	pointsInputText.setFillColor(sf::Color::Black);
+	pointsInputText.setPosition(110,285);
 	//Header bar
 	const float W = static_cast<float>(window.getSize().x);
 	const float H = static_cast<float>(window.getSize().y);
@@ -82,9 +100,7 @@ void App::run() {
 		window.close();
 		return;
 		}
-		/*if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::P){
-		launchPlotWindow("data/points.txt");
-		} //fallback / test */
+
 		//Hover (for aesthetics)
 		if(event.type == sf::Event::MouseMoved) {
 			sf::Vector2f mousePos(static_cast<float>(event.mouseMove.x),
@@ -94,46 +110,82 @@ void App::run() {
 			}
 			addFileButton.setHovered(addFileButton.contains(mousePos));
 		}
+		
 		//Handle text input for pop up
 		if(showingTextInput && event.type == sf::Event::TextEntered) {
+		std::string& buf = focusOnFilename ? userInput : userInputPoints;
+
 			if(event.text.unicode == '\b') {
-				if(!userInput.empty())
-					userInput.pop_back(); //backspace
+				if(!buf.empty())
+					buf.pop_back(); //backspace
 			}
 			else if (event.text.unicode == '\r' || event.text.unicode == '\n') {
-				if(!userInput.empty()) {
-					std::ofstream outFile("data/" + userInput);
-					if (outFile) {
-						fileNames.push_back("data/" + userInput);
-						loadDataFileButtons();
+				if (focusOnFilename) {
+					focusOnFilename = false;
+				} else {
+					//create file with points
+					std::string fname = userInput;
+
+					if(!fname.empty()) {
+					if(fname.find('.') == std::string::npos) fname += ".txt";
+					std::string fullPath = "data/" + fname;
+
+					std::ofstream out(fullPath);
+					if (out) {
+						std::string pts = userInputPoints;
+						for (char &c : pts) if (c == ',' || c == ';' || c =='\t') c=' ';
+						std::istringstream iss(pts);
+						double v; std::vector<double> nums;
+						while (iss >> v) nums.push_back(v);
+						for (size_t i = 0; i +1 < nums.size(); i+=2)
+							out << nums[i] << " " << nums[i+1] << "\n";
 					}
-				userInput = "";
-				showingTextInput = false;
+					//refresh UI
+					userInput.clear();
+					userInputPoints.clear();
+					inputText.setString("");
+					pointsInputText.setString("");
+					focusOnFilename = true;
+					showingTextInput = false;
+					loadDataFileButtons();
+					}
+				}
 			}
-		}	else if (event.text.unicode < 128 && userInput.size() <30) {
-			char entered = static_cast<char>(event.text.unicode);
-			if (entered != ' ') {		//NO SPACES
-				userInput += entered;  }
+			else if (event.text.unicode >= 32 && event.text.unicode < 127) {
+				char ch = static_cast<char>(event.text.unicode);
+				if (focusOnFilename) { if ( ch != ' ') buf.push_back(ch); } //no space
+				else buf.push_back(ch);
 			}
-			inputText.setString(userInput);
-			std::cout<<"[DEBUG] Typing : " <<userInput<<std::endl;
-		}
-		if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-		sf::Vector2f mousePos(event.mouseButton.x, event.mouseButton.y);
-		for (size_t i = 0; i < fileButtons.size(); i++) {
+	inputText.setString(userInput + (focusOnFilename ? "_" : ""));
+	pointsInputText.setString(userInputPoints + (!focusOnFilename ? "_" : ""));
+	
+	}
+	
+	//clicks (file buttons and add file)
+	if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+		
+		//use window-mapped coordinates to make life easier
+		sf::Vector2f mousePos = window.mapPixelToCoords(
+			sf::Vector2i(event.mouseButton.x, event.mouseButton.y)
+			);
+		//open plot for a file button
+		for (size_t i = 0; i < fileButtons.size(); ++i) {
 			if(fileButtons[i].isClicked(mousePos)) {
-				launchPlotWindow(fileNames[i]); //grabs file name
+				launchPlotWindow(fileNames[i]);
+				break;
 			}
 		}
+		//open the dual-input pop up
 		if (addFileButton.isClicked(mousePos)) {
 			showingTextInput = true;
-			userInput = "";
+			userInput.clear();
+			userInputPoints.clear();
 			inputText.setString("");
-		std::cout<< "[DEBUG] Add File button clicked" << std::endl;
-			}
-
+			pointsInputText.setString("");
+			focusOnFilename = true;
 		}
 	}
+}
 		update();
 		render();
 }	
@@ -208,6 +260,20 @@ void App::render() {
 	if (showingTextInput) {
 		window.draw(inputBox);
 		window.draw(inputText);
+
+		//draw points input UI
+		window.draw(pointsInputBox);
+		window.draw(pointsInputText);
+		window.draw(pointsInputPrompt);
+		
+		//show which box is active
+		if (focusOnFilename) {
+			inputBox.setOutlineColor(sf::Color::Blue);
+			pointsInputBox.setOutlineColor(sf::Color::Black);
+		} else {
+			inputBox.setOutlineColor(sf::Color::Black);
+			pointsInputBox.setOutlineColor(sf::Color::Blue);
+		}
 	}
 	window.display();
 }
@@ -215,6 +281,9 @@ void App::render() {
 void App::launchPlotWindow(const std::string& filePath){
 	sf::RenderWindow plotWindow(sf::VideoMode(800,600),"GraphiX Plot View");
 	Plotter plotter;
+	
+	bool savePNG = false;
+	std::string pendingPath;
 	//load data from file
 	std::vector<sf::Vector2f> data = loadXYData(filePath);
 	plotter.setData(data);
@@ -225,13 +294,44 @@ void App::launchPlotWindow(const std::string& filePath){
 			if(event.type == sf::Event::Closed){
 				plotWindow.close();
 			}
-		}
+		if(event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::S)) {
+			//derive output path from data file name
+			auto posSlash = filePath.find_last_of("/\\");
+			std::string base = (posSlash == std::string::npos)
+					? filePath
+					: filePath.substr(posSlash + 1);
+			auto posDot = base.find_last_of('.');
+			if(posDot != std::string::npos) base = base.substr(0, posDot);
+			
+			pendingPath = std::string("data/") + base + ".png";
+			savePNG = true; //defer capture until after display
+			std::cout << "[S] will save" << pendingPath << "\n";
+		} //closes event type
+
+
+		} //end pollevent
 	plotWindow.clear(sf::Color::White); //clear screen
 	plotter.draw(plotWindow); //draw grid and points
 	plotWindow.display(); //display what we drew
+
+
+	//snapshot saving block
+	if(savePNG) {
+		sf::Texture tex;
+		tex.create(plotWindow.getSize().x, plotWindow.getSize().y);
+		tex.update(plotWindow);
+		sf::Image img = tex.copyToImage();
+		if (img.saveToFile(pendingPath)) {
+			std::cout << "Saved plot to" << pendingPath << "\n";
+		} else {
+			std::cout << "Failed to save plot image\n";
+		}
+		savePNG = false; //reset
+
 	}
 }
 
+}
 //main window GUI
 void App::loadDataFileButtons() {
 	fileButtons.clear(); //our little safety net
